@@ -21,7 +21,13 @@ async def start_quiz(user_id, message_or_callback):
             await message_or_callback.answer("You are not registered. Use /start.")
         return False
 
-    if user[8] == 1:  # banned (index 8)
+    # Обработка обеих структур БД
+    if len(user) >= 9:  # Старая структура: индекс banned = 8
+        is_banned = user[8] == 1
+    else:  # Новая структура: индекс banned = 6
+        is_banned = user[6] == 1
+    
+    if is_banned:
         if hasattr(message_or_callback, 'answer'):
             await message_or_callback.answer("You are banned.")
         return False
@@ -40,16 +46,18 @@ async def start_quiz(user_id, message_or_callback):
         ]
     ])
     
-    if hasattr(message_or_callback, 'edit_text'):
+    question_text = f"{q['question']}\n\nA: {q['A']}\nB: {q['B']}\nC: {q['C']}\nD: {q['D']}"
+    
+    if isinstance(message_or_callback, types.CallbackQuery):
         # Якщо це callback, редагуємо повідомлення
-        await message_or_callback.edit_text(
-            f"{q['question']}\n\nA: {q['A']}\nB: {q['B']}\nC: {q['C']}\nD: {q['D']}",
+        await message_or_callback.message.edit_text(
+            question_text,
             reply_markup=inline_kb
         )
     else:
         # Якщо це message, відправляємо нове повідомлення
         await message_or_callback.answer(
-            f"{q['question']}\n\nA: {q['A']}\nB: {q['B']}\nC: {q['C']}\nD: {q['D']}",
+            question_text,
             reply_markup=inline_kb
         )
 
@@ -96,8 +104,14 @@ async def answer_callback(callback: types.CallbackQuery):
     
     q = current_questions[user_id]
     correct = q["answer"]
-    coins = user[5]
-    streak = user[7]  # streak is at index 7
+    
+    # Обработка обеих структур БД
+    if len(user) >= 9:  # Старая структура: coins=5, streak=7
+        coins = user[5]
+        streak = user[7]
+    else:  # Новая структура - используем значения по умолчанию
+        coins = 0
+        streak = 0
 
     if selected_answer == correct:
         streak += 1
@@ -114,10 +128,28 @@ async def answer_callback(callback: types.CallbackQuery):
 
     # Edit message to show result
     await callback.message.edit_text(
-        f"{callback.message.text}\n\n{result}\nВаші монети: {coins}"
+        f"{callback.message.text}\n\n{result}\nВаші монети: {coins}",
+        reply_markup=types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="➡️ Наступне питання", callback_data=f"next_quiz_{user_id}")]
+        ])
     )
     
     await callback.answer()
 
     # Clear stored question
     current_questions[user_id] = None
+
+
+@router.callback_query(F.data.startswith("next_quiz_"))
+async def next_quiz_callback(callback: types.CallbackQuery):
+    """Handler for starting next quiz question"""
+    parts = callback.data.split("_")
+    user_id = int(parts[2])
+    
+    # Check if this callback is for the current user
+    if callback.from_user.id != user_id:
+        await callback.answer("Це не ваша кнопка!", show_alert=True)
+        return
+    
+    await callback.answer()
+    await start_quiz(user_id, callback)

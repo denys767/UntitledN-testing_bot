@@ -1,2 +1,3 @@
-TOKEN = "8203826523:AAEq7xixc95JphlOJ-AFsYEeRf9Rk2m5YcM"
-ADMIN_IDS = [123456789]
+TOKEN = "8296663348:AAERDqSslEY2swMlYJmJ2isCA4S_wI9qp5c"
+ADMIN_IDS = [623123859]  # Администраторы по умолчанию (из конфига)
+ADMINS_DB = "admins.json"  # Файл для сохранения динамически добавленных администраторов
